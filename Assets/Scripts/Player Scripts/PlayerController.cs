@@ -6,9 +6,16 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float moveSpeed = 5f;
     [SerializeField] private float jumpHeight = 2f;
     [SerializeField] private float gravityValue = -9.81f;
+    [SerializeField] private float turnSmoothTime = 0.1f;
+    [Header("Wall run settings")]
     [SerializeField] private float wallRunGravity = 0f;
     [SerializeField] private float wallRunGravityIncrease = 2f;
-    [SerializeField] private float turnSmoothTime = 0.1f;
+    [SerializeField] private float pushOffForce = 5f;
+    [SerializeField] private float pushForwardForce = 2f;
+
+    private Vector3 wallNormal;
+    private Vector3 wallJumpVelocity;
+
     private float turnSmoothVelocity;
 
     private CharacterController controller;
@@ -41,8 +48,10 @@ public class PlayerController : MonoBehaviour
         }
         else if (context.performed && isOnWall)
         {
-            //Debug.Log("We are supposed to jump off the wall");
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravityValue);
+
+            wallJumpVelocity = (wallNormal * pushOffForce) + (transform.forward * pushForwardForce); // Jumping away from the wall and slightly to the side
+            
             WallRunning(false);
         }
     }
@@ -91,6 +100,10 @@ public class PlayerController : MonoBehaviour
             velocity.y -= wallRunGravity * Time.deltaTime;
         }
 
+        controller.Move(wallJumpVelocity * Time.deltaTime);
+
+        wallJumpVelocity = Vector3.Lerp(wallJumpVelocity, Vector3.zero, 10f * Time.deltaTime); // Smoothly reduce wall jump velocity over time
+        
         // Move the player based on the calculated velocity
         controller.Move(velocity * Time.deltaTime);
     }
@@ -144,11 +157,16 @@ public class PlayerController : MonoBehaviour
 
         wallRunGravity = 0f; // Reset wall run gravity when starting or stopping wall running
 
-        Vector3 wallRunDirection = GetWallRunDirection(wallTrigger);
-
         if (isRunning)
         {
+            wallNormal = transform.position - wallTrigger.transform.position;
+            wallNormal.y = 0f; // Ignore vertical component for wall normal
+            wallNormal.Normalize();
+
+            Vector3 wallRunDirection = GetWallRunDirection(wallTrigger);
+
             velocity.y = 0f; // Reset vertical velocity when starting wall running
+
             transform.rotation = Quaternion.LookRotation(wallRunDirection);
         }
     }
