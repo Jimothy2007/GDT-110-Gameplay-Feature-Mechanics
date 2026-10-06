@@ -3,24 +3,29 @@ using UnityEngine.InputSystem;
 
 public class PlayerController : MonoBehaviour
 {
+    [Header("Movement settings")]
     [SerializeField] private float moveSpeed = 5f;
     [SerializeField] private float jumpHeight = 2f;
     [SerializeField] private float gravityValue = -9.81f;
     [SerializeField] private float turnSmoothTime = 0.1f;
+    [SerializeField] private float airControlMultiplier = 0.5f;
+    [SerializeField] private float groundAcceleration = 20f;
+    [SerializeField] private float airAcceleration = 5f;
     [Header("Wall run settings")]
+    [SerializeField] private float wallRunSpeed = 5f;
     [SerializeField] private float wallRunGravity = 0f;
     [SerializeField] private float wallRunGravityIncrease = 2f;
     [SerializeField] private float pushOffForce = 5f;
     [SerializeField] private float pushForwardForce = 2f;
 
     private Vector3 wallNormal;
-    private Vector3 wallJumpVelocity;
 
     private float turnSmoothVelocity;
 
     private CharacterController controller;
     private Vector2 moveInput;
     private Vector3 velocity;
+    private Vector3 moveVelocity;
     private Transform cameraTransform;
 
     private bool isRotationLocked = false;
@@ -40,19 +45,36 @@ public class PlayerController : MonoBehaviour
 
     public void OnJump(InputAction.CallbackContext context)
     {
-        //Debug.Log($"Jumping: {context.performed} - isGrounded: {controller.isGrounded}");
-        if (context.performed && controller.isGrounded)
+        if (context.started && controller.isGrounded)
         {
-            //Debug.Log("We are supposed to jump");
-            velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravityValue);
+                velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravityValue);
         }
-        else if (context.performed && isOnWall)
+        else if (context.started && isOnWall)
         {
+            Vector3 runDirection = moveVelocity;
+            runDirection.y = 0f; // Ignore vertical component for wall jump direction
+
+            if (runDirection.magnitude > 0.01f)
+            {
+                runDirection.Normalize();
+            }
+            else
+            {
+                runDirection = transform.forward; // Default to forward if no movement input
+            }
+
+            moveVelocity += wallNormal * pushOffForce; // Push away from the wall
+
+            moveVelocity += runDirection * pushForwardForce; // Add forward momentum
+
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravityValue);
 
-            wallJumpVelocity = (wallNormal * pushOffForce) + (transform.forward * pushForwardForce); // Jumping away from the wall and slightly to the side
-            
             WallRunning(false);
+        }
+
+        if (context.canceled && velocity.y > 0)
+        {
+            velocity.y *= 0.5f; // Reduce upward velocity when jump is released early
         }
     }
 
@@ -85,8 +107,23 @@ public class PlayerController : MonoBehaviour
             WallRunning(false);
         }
 
+        float currentMoveSpeed = isOnWall ? wallRunSpeed : moveSpeed;
+
+        if (controller.isGrounded)
+        {
+            Vector3 targetVelocity = moveDirection * currentMoveSpeed;
+
+            moveVelocity = Vector3.MoveTowards(moveVelocity, targetVelocity, groundAcceleration * Time.deltaTime);
+        }
+        else if (moveDirection != Vector3.zero && !controller.isGrounded)
+        {
+            Vector3 targetVelocity = moveDirection * currentMoveSpeed;
+
+            moveVelocity = Vector3.MoveTowards(moveVelocity, targetVelocity, airAcceleration * Time.deltaTime);
+        }
+
         // Move the player
-        controller.Move(moveDirection * Time.deltaTime * moveSpeed);
+        controller.Move(moveVelocity * Time.deltaTime);
 
         //Apply gravity if the player is not on the wall
         if (!isOnWall)
@@ -99,10 +136,6 @@ public class PlayerController : MonoBehaviour
             wallRunGravity = Mathf.Clamp(wallRunGravity, 0f, Mathf.Abs(gravityValue));
             velocity.y -= wallRunGravity * Time.deltaTime;
         }
-
-        controller.Move(wallJumpVelocity * Time.deltaTime);
-
-        wallJumpVelocity = Vector3.Lerp(wallJumpVelocity, Vector3.zero, 10f * Time.deltaTime); // Smoothly reduce wall jump velocity over time
         
         // Move the player based on the calculated velocity
         controller.Move(velocity * Time.deltaTime);
@@ -159,7 +192,8 @@ public class PlayerController : MonoBehaviour
 
         if (isRunning)
         {
-            wallNormal = transform.position - wallTrigger.transform.position;
+            Vector3 closestPoint = wallTrigger.GetComponent<Collider>().ClosestPoint(transform.position);
+            wallNormal = transform.position - closestPoint;
             wallNormal.y = 0f; // Ignore vertical component for wall normal
             wallNormal.Normalize();
 
