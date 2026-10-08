@@ -11,12 +11,15 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float airControlMultiplier = 0.5f;
     [SerializeField] private float groundAcceleration = 20f;
     [SerializeField] private float airAcceleration = 5f;
+    [SerializeField] private float ledgeAcceleration = 10f;
     [Header("Wall run settings")]
     [SerializeField] private float wallRunSpeed = 5f;
     [SerializeField] private float wallRunGravity = 0f;
     [SerializeField] private float wallRunGravityIncrease = 2f;
     [SerializeField] private float pushOffForce = 5f;
     [SerializeField] private float pushForwardForce = 2f;
+    [Header("Ledge grab settings")]
+    [SerializeField] private float ledgeGrabSpeed = 2f;
 
     private Vector3 wallNormal;
 
@@ -30,6 +33,7 @@ public class PlayerController : MonoBehaviour
 
     private bool isRotationLocked = false;
     private bool isOnWall = false;
+    private bool isLedgeGrabbing = false;
 
     void Start()
     {
@@ -40,7 +44,7 @@ public class PlayerController : MonoBehaviour
     public void OnMove(InputAction.CallbackContext context)
     {
         moveInput = context.ReadValue<Vector2>();
-        //Debug.Log($"Move Input: {moveInput}");
+        Debug.Log($"Move Input: {moveInput}");
     }
 
     public void OnJump(InputAction.CallbackContext context)
@@ -107,7 +111,20 @@ public class PlayerController : MonoBehaviour
             WallRunning(false);
         }
 
-        float currentMoveSpeed = isOnWall ? wallRunSpeed : moveSpeed;
+        float currentMoveSpeed;
+
+        if (isOnWall)
+        {
+            currentMoveSpeed = wallRunSpeed;
+        }
+        else if (isLedgeGrabbing)
+        {
+            currentMoveSpeed = ledgeGrabSpeed;
+        }
+        else
+        {
+            currentMoveSpeed = moveSpeed;
+        }
 
         if (controller.isGrounded)
         {
@@ -121,9 +138,25 @@ public class PlayerController : MonoBehaviour
 
             moveVelocity = Vector3.MoveTowards(moveVelocity, targetVelocity, airAcceleration * Time.deltaTime);
         }
+        else if (moveDirection != Vector3.zero && isLedgeGrabbing)
+        {
+            if (moveInput.y > 0)
+            {
+                // Allow the player to move up while ledge grabbing
+            }
+            else if (moveInput.y < 0)
+            {
+                LedgeGrabbing(false); // Release ledge grab if the player is trying to move down
+            }
+            else
+            {
+                Vector3 targetVelocity = moveDirection * currentMoveSpeed;
+                moveVelocity = Vector3.MoveTowards(moveVelocity, targetVelocity, ledgeAcceleration * Time.deltaTime);
+            }
+        }
 
-        // Move the player
-        controller.Move(moveVelocity * Time.deltaTime);
+            // Move the player
+            controller.Move(moveVelocity * Time.deltaTime);
 
         //Apply gravity if the player is not on the wall
         if (!isOnWall)
@@ -136,7 +169,11 @@ public class PlayerController : MonoBehaviour
             wallRunGravity = Mathf.Clamp(wallRunGravity, 0f, Mathf.Abs(gravityValue));
             velocity.y -= wallRunGravity * Time.deltaTime;
         }
-        
+        else if (isLedgeGrabbing)
+        {
+            velocity.y = 0f; // Reset vertical velocity when ledge grabbing
+        }
+
         // Move the player based on the calculated velocity
         controller.Move(velocity * Time.deltaTime);
     }
@@ -167,6 +204,11 @@ public class PlayerController : MonoBehaviour
                 Debug.Log("Player is not facing the wall enough to start wall running.");
             }
         }
+        else if (other.gameObject.CompareTag("Ledge"))
+        {
+            Debug.Log("Player is in range of a ledge and can start ledge grabbing.");
+            LedgeGrabbing(true);
+        }
     }
 
     private void OnTriggerExit(Collider other)
@@ -174,6 +216,10 @@ public class PlayerController : MonoBehaviour
         if (other.gameObject.CompareTag("RunnableWall"))
         {
             WallRunning(false);
+        }
+        else if (other.gameObject.CompareTag("Ledge"))
+        {
+            LedgeGrabbing(false);
         }
     }
 
@@ -225,6 +271,12 @@ public class PlayerController : MonoBehaviour
         {
             return direction2;
         }
+    }
+
+    private void LedgeGrabbing(bool isGrabbing)
+    {
+        isLedgeGrabbing = isGrabbing;
+        isRotationLocked = isGrabbing;
     }
 
     private void OnDrawGizmos()
