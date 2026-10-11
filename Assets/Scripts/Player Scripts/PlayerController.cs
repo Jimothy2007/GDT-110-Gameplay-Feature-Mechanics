@@ -13,6 +13,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float groundAcceleration = 20f;
     [SerializeField] private float airAcceleration = 5f;
     [SerializeField] private float ledgeAcceleration = 10f;
+    [SerializeField] private float wallAcceleration = 20f;
     [Header("Wall run settings")]
     [SerializeField] private float wallRunSpeed = 5f;
     [SerializeField] private float wallRunGravity = 0f;
@@ -21,6 +22,8 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float pushForwardForce = 2f;
     [Header("Ledge grab settings")]
     [SerializeField] private float ledgeMoveSpeed = 2f;
+    [SerializeField] private float ledgeTeleportY = 1f;
+    [SerializeField] private float ledgeTeleportForward = 1f;
 
     private Vector3 wallNormal;
 
@@ -31,9 +34,13 @@ public class PlayerController : MonoBehaviour
     private Vector3 velocity;
     private Vector3 moveVelocity;
     private Transform cameraTransform;
+    private LedgeDetection ledgeDetection;
 
     private bool isRotationLocked = false;
     private bool isOnWall = false;
+    private bool isOnLedge = false;
+    private bool climbRequested;
+    private bool dropRequested;
 
     [HideInInspector] public bool ledgeDetected;
     [HideInInspector] public Collider wallToGrab;
@@ -43,21 +50,51 @@ public class PlayerController : MonoBehaviour
     {
         controller = GetComponent<CharacterController>();
         cameraTransform = Camera.main.transform;
+        ledgeDetection = GetComponentInChildren<LedgeDetection>();
     }
 
     public void OnMove(InputAction.CallbackContext context)
     {
-        moveInput = context.ReadValue<Vector2>();
-        Debug.Log($"Move Input: {moveInput}");
+        Vector3 newInput = context.ReadValue<Vector2>();
+
+
+        if (isOnLedge)
+        {
+            if (moveInput.y <= 0.5f && newInput.y > 0.5f)
+            {
+                climbRequested = true;
+            }
+            if (moveInput.y >= -0.5f && newInput.y < -0.5f)
+            {
+                dropRequested = true;
+            }
+        }
+
+        moveInput = newInput;
     }
 
     public void OnJump(InputAction.CallbackContext context)
     {
-        if (context.started && controller.isGrounded)
+        if (!context.started) return;
+
+        if (isOnLedge)
         {
-                velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravityValue);
+            Vector3 jumpDirection = wallNormal.normalized;
+
+            LedgeGrabbing(false);
+
+            moveVelocity = jumpDirection * pushOffForce;
+
+            velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravityValue);
+
+            if (ledgeDetection != null)
+            {
+                ledgeDetection.IgnoreUntilClear();
+            }
+
+            return;
         }
-        else if (context.started && isOnWall)
+        else if (isOnWall)
         {
             Vector3 runDirection = moveVelocity;
             runDirection.y = 0f; // Ignore vertical component for wall jump direction
@@ -78,6 +115,12 @@ public class PlayerController : MonoBehaviour
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravityValue);
 
             WallRunning(false);
+
+            return;
+        }
+        else if (controller.isGrounded)
+        {
+            velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravityValue);
         }
 
         if (context.canceled && velocity.y > 0)
@@ -88,6 +131,16 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
+        if (isOnLedge)
+        {
+            moveVelocity = Vector3.zero;
+            velocity = Vector3.zero;
+
+            MoveAlongLedge();
+
+            return;
+        }
+
         // Apply gravity and reset vertical velocity when grounded
         if (controller.isGrounded && velocity.y < 0)
         {
@@ -127,6 +180,12 @@ public class PlayerController : MonoBehaviour
 
             moveVelocity = Vector3.MoveTowards(moveVelocity, targetVelocity, groundAcceleration * Time.deltaTime);
         }
+        else if (moveDirection != Vector3.zero && isOnWall)
+        {
+            Vector3 targetVelocity = moveDirection * currentMoveSpeed;
+
+            moveVelocity = Vector3.MoveTowards(moveVelocity, targetVelocity, wallAcceleration * Time.deltaTime);
+        }
         else if (moveDirection != Vector3.zero && !controller.isGrounded)
         {
             Vector3 targetVelocity = moveDirection * currentMoveSpeed;
@@ -155,9 +214,9 @@ public class PlayerController : MonoBehaviour
         {
             Debug.Log("Wall detected");
         }
-        if (ledgeDetected)
+        if (ledgeDetected && !isOnLedge)
         {
-            Debug.Log("Ledge detected and can ledge grab");
+            LedgeGrabbing(true);
         }
     }
 
@@ -245,5 +304,93 @@ public class PlayerController : MonoBehaviour
         {
             return direction2;
         }
+    }
+
+    private void LedgeGrabbing(bool onLedge)
+    {
+        if (onLedge)
+        {
+            if (wallToGrab == null)
+            {
+                Debug.LogWarning("Wall to grab is null");
+                return;
+            }
+
+            isOnLedge = true;
+            isRotationLocked = true;
+
+            moveVelocity = Vector3.zero;
+            velocity = Vector3.zero;
+
+            Vector3 closestPoint = wallToGrab.ClosestPoint(transform.position);
+            wallNormal = transform.position - closestPoint;
+            wallNormal.y = 0f; // Ignore vertical component for wall normal
+
+            if (wallNormal.sqrMagnitude > 0.001f)
+            {
+                wallNormal.Normalize();
+
+                transform.rotation = Quaternion.LookRotation(-wallNormal);
+            }
+        }
+        else
+        {
+            isOnLedge = false;
+            isRotationLocked = false;
+        }
+    }
+
+    private void MoveAlongLedge()
+    {
+        if (wallToGrab == null)
+        {
+            LedgeGrabbing(false);
+            return;
+        }
+
+        if (climbRequested)
+        {
+            climbRequested = false;
+
+            Vector3 teleportPosition = transform.position;
+
+            teleportPosition.y += ledgeTeleportY;
+            teleportPosition += transform.forward * ledgeTeleportForward;
+
+            LedgeGrabbing(false);
+
+            controller.enabled = false;
+            transform.position = teleportPosition;
+            controller.enabled = true;
+
+            moveVelocity = Vector3.zero;
+            velocity = Vector3.zero;
+
+            return;
+        }
+
+        if (dropRequested)
+        {
+            dropRequested = false;
+            LedgeGrabbing(false);
+
+            if (ledgeDetection != null)
+            {
+                ledgeDetection.IgnoreUntilClear();
+            }
+
+            moveVelocity = Vector3.zero;
+            velocity = Vector3.zero;
+
+            return;
+        }
+
+        Vector3 wallRight = Vector3.Cross(Vector3.up, wallNormal).normalized;
+
+        float horizontalInput = -moveInput.x;
+
+        Vector3 shimmyDirection = wallRight * horizontalInput;
+
+        controller.Move(shimmyDirection * ledgeMoveSpeed * Time.deltaTime);
     }
 }

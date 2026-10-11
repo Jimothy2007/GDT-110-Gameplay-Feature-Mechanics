@@ -1,3 +1,4 @@
+using Unity.VisualScripting;
 using UnityEngine;
 
 public class LedgeDetection : MonoBehaviour
@@ -5,9 +6,9 @@ public class LedgeDetection : MonoBehaviour
     [SerializeField] private float ledgeDetectionRadius = 0.3f;
     [SerializeField] private LayerMask wallLayer;
     [SerializeField] private PlayerController player;
-    private Collider wallCollider;
-    private bool isLedgeDetected = false;
+
     private bool canDetect = true;
+    private bool ignoreUntilClear = false;
 
     private void Start()
     {
@@ -23,26 +24,50 @@ public class LedgeDetection : MonoBehaviour
 
     private void Update()
     {
-        if (canDetect)
-        {
-            Collider[] wallColliders = new Collider[1];
-            int numDetected = Physics.OverlapSphereNonAlloc(transform.position, ledgeDetectionRadius, wallColliders, wallLayer);
+        if (player == null || !canDetect)  return;
 
-            if (numDetected > 0 && wallColliders[0] != null)
+        Collider[] hits = Physics.OverlapSphere(transform.position, ledgeDetectionRadius, wallLayer);
+
+        Collider validWall = null;
+
+        foreach (Collider hit in hits)
+        {
+            WallScript wall = hit.GetComponent<WallScript>();
+
+            if (wall != null && wall.CanBeLedgeGrabbed())
             {
-                if (wallColliders[0].gameObject.GetComponent<WallScript>().CanBeLedgeGrabbed())
-                {
-                    Debug.Log("Ledge detected");
-                    player.ledgeDetected = true;
-                    player.wallToGrab = wallColliders[0];
-                    return;
-                }
+                validWall = hit;
+                break;
             }
-            else if (numDetected <= 0)
-            {
-                player.ledgeDetected = false;
-                player.wallToGrab = null;
-            }
+        }
+
+        if (validWall == null)
+        {
+            player.ledgeDetected = false;
+            player.wallToGrab = null;
+            ignoreUntilClear = false;
+            return;
+        }
+
+        if (ignoreUntilClear)
+        {
+            player.ledgeDetected = false;
+            player.wallToGrab = null;
+            return;
+        }
+
+        player.wallToGrab = validWall;
+        player.ledgeDetected = true;
+    }
+
+    public void IgnoreUntilClear()
+    {
+        ignoreUntilClear = true;
+
+        if (player != null)
+        {
+            player.ledgeDetected = false;
+            player.wallToGrab = null;
         }
     }
 
