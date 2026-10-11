@@ -2,7 +2,7 @@
 
 This project was made for the GDT-110 Gameplay Feature Mechanics assignment. All the required submissions are listed below.
 - Word document with flowchart: [GDT-110 Gameplay Feature Mechanic.docx](https://github.com/user-attachments/files/33296140/GDT-110.Gameplay.Feature.Mechanic.docx)
-- Video presentation:
+- Video presentation: https://youtu.be/7sDav-c6hTU
 - GitHub repository: https://github.com/Jimothy2007/GDT-110-Gameplay-Feature-Mechanics
 
 How to access the submissions:
