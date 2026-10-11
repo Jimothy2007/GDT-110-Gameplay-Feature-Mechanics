@@ -150,6 +150,15 @@ public class PlayerController : MonoBehaviour
         }
         // Move the player based on the calculated velocity
         controller.Move(velocity * Time.deltaTime);
+
+        if (wallDetected)
+        {
+            Debug.Log("Wall detected");
+        }
+        if (ledgeDetected)
+        {
+            Debug.Log("Ledge detected and can ledge grab");
+        }
     }
 
     private void OnTriggerEnter(Collider other)
@@ -236,11 +245,5 @@ public class PlayerController : MonoBehaviour
         {
             return direction2;
         }
-    }
-
-    private void OnDrawGizmos()
-    {
-        Gizmos.color = Color.red;
-        Gizmos.DrawLine(transform.position, transform.position + transform.forward * 1f);
     }
 }

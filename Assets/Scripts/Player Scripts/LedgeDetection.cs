@@ -2,45 +2,73 @@ using UnityEngine;
 
 public class LedgeDetection : MonoBehaviour
 {
-    [SerializeField] private float ledgeDetectionDistance = 1f;
+    [SerializeField] private float ledgeDetectionRadius = 0.3f;
     [SerializeField] private LayerMask wallLayer;
-    [SerializeField] private GameObject player;
+    [SerializeField] private PlayerController player;
     private Collider wallCollider;
     private bool isLedgeDetected = false;
+    private bool canDetect = true;
 
     private void Start()
     {
         if (wallLayer == 0)
         {
-            Debug.Log("Set the wallLayer for ledgeDetection.");
+            wallLayer = LayerMask.GetMask("Walls");
         }
         if (player == null)
         {
-            player = gameObject.GetComponentInParent<GameObject>();
+            player = gameObject.GetComponentInParent<PlayerController>();
         }
     }
 
-    private void FixedUpdate()
+    private void Update()
     {
-        RaycastHit hit;
-
-        if (Physics.Raycast(transform.position, transform.forward, out hit, ledgeDetectionDistance, wallLayer))
+        if (canDetect)
         {
-            if (hit.collider.GetComponent<WallScript>().CanBeLedgeGrabbed())
+            Collider[] wallColliders = new Collider[1];
+            int numDetected = Physics.OverlapSphereNonAlloc(transform.position, ledgeDetectionRadius, wallColliders, wallLayer);
+
+            if (numDetected > 0 && wallColliders[0] != null)
             {
-                Debug.DrawRay(transform.position, transform.forward * ledgeDetectionDistance, Color.red);
-                wallCollider = hit.collider;
-                isLedgeDetected = true;
+                if (wallColliders[0].gameObject.GetComponent<WallScript>().CanBeLedgeGrabbed())
+                {
+                    Debug.Log("Ledge detected");
+                    player.ledgeDetected = true;
+                    player.wallToGrab = wallColliders[0];
+                    return;
+                }
+            }
+            else if (numDetected <= 0)
+            {
+                player.ledgeDetected = false;
+                player.wallToGrab = null;
             }
         }
-        else
-        {
-            Debug.DrawRay(transform.position, transform.forward * ledgeDetectionDistance, Color.green);
-            wallCollider = null;
-            isLedgeDetected = false;
-        }
+    }
 
-        player.GetComponent<PlayerController>().ledgeDetected = isLedgeDetected;
-        player.GetComponent<PlayerController>().wallToGrab = wallCollider;
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.gameObject.layer == LayerMask.NameToLayer("Walls"))
+        {
+            Debug.Log("Ledge detection switched off");
+            canDetect = false;
+        }
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
+        if (other.gameObject.layer == LayerMask.NameToLayer("Walls"))
+        {
+            Debug.Log("Ledge detection switched on");
+            canDetect = true;
+        }
+    }
+
+    private void OnDrawGizmos()
+    {
+        Gizmos.color = Color.green;
+        Gizmos.DrawWireSphere(transform.position, ledgeDetectionRadius);
+        BoxCollider collider = gameObject.GetComponent<BoxCollider>();
+        Gizmos.DrawWireCube(transform.position + collider.center, collider.size);
     }
 }

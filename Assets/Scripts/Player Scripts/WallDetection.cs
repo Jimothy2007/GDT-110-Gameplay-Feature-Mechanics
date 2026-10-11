@@ -25,7 +25,7 @@ public class WallDetection : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (wallLayer.Equals("Wall"))
+        if (other.gameObject.layer == LayerMask.NameToLayer("Walls"))
         {
             isWallDetected = true;
         }
@@ -33,9 +33,16 @@ public class WallDetection : MonoBehaviour
 
     private void OnTriggerExit(Collider other)
     {
-        if (wallLayer.Equals("Wall"))
+        if (other.gameObject.layer == LayerMask.NameToLayer("Walls"))
         {
             isWallDetected = false;
         }
+    }
+
+    private void OnDrawGizmos()
+    {
+        Gizmos.color = Color.green;
+        BoxCollider collider = gameObject.GetComponent<BoxCollider>();
+        Gizmos.DrawWireCube(transform.position + collider.center, collider.size);
     }
 }
