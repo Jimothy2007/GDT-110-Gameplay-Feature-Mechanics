@@ -751,7 +751,7 @@ Transform:
   m_GameObject: {fileID: 501886500}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.5, y: 2.5, z: 26}
+  m_LocalPosition: {x: 0, y: 2.5, z: 26}
   m_LocalScale: {x: 5, y: 5, z: 5}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1536,6 +1536,8 @@ MonoBehaviour:
   pushOffForce: 7
   pushForwardForce: 2
   ledgeMoveSpeed: 2
+  ledgeTeleportY: 1
+  ledgeTeleportForward: 0.5
   ledgeDetected: 0
   wallToGrab: {fileID: 0}
   wallDetected: 0

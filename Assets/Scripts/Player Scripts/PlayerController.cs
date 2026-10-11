@@ -22,6 +22,8 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float pushForwardForce = 2f;
     [Header("Ledge grab settings")]
     [SerializeField] private float ledgeMoveSpeed = 2f;
+    [SerializeField] private float ledgeTeleportY = 1f;
+    [SerializeField] private float ledgeTeleportForward = 1f;
 
     private Vector3 wallNormal;
 
@@ -350,8 +352,20 @@ public class PlayerController : MonoBehaviour
         {
             climbRequested = false;
 
-            //Play climbing animation and teleport the player up the ledge
-            Debug.Log("Climb requested");
+            Vector3 teleportPosition = transform.position;
+
+            teleportPosition.y += ledgeTeleportY;
+            teleportPosition += transform.forward * ledgeTeleportForward;
+
+            LedgeGrabbing(false);
+
+            controller.enabled = false;
+            transform.position = teleportPosition;
+            controller.enabled = true;
+
+            moveVelocity = Vector3.zero;
+            velocity = Vector3.zero;
+
             return;
         }
 
