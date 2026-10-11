@@ -1529,6 +1529,7 @@ MonoBehaviour:
   groundAcceleration: 20
   airAcceleration: 10
   ledgeAcceleration: 10
+  wallAcceleration: 20
   wallRunSpeed: 7
   wallRunGravity: 0
   wallRunGravityIncrease: 5
